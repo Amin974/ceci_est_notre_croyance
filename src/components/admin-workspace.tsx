@@ -8,7 +8,9 @@ import {
   Folder,
   FolderPlus,
   LogOut,
+  Menu,
   Search,
+  X,
 } from "lucide-react";
 import { getSupabaseBrowserClient, hasSupabaseConfig } from "@/lib/supabase-browser";
 import { getSearchExcerpt, highlightMatches } from "@/lib/text";
@@ -39,6 +41,7 @@ export function AdminWorkspace() {
   const [folderName, setFolderName] = useState("");
   const [fileForm, setFileForm] = useState<FileFormState>(emptyFileForm);
   const [isFilePanelOpen, setIsFilePanelOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
@@ -210,6 +213,7 @@ export function AdminWorkspace() {
       setFolders((current) => [...current, data]);
       setFolderName("");
       setSelectedFolderId(data.id);
+      setIsMobileMenuOpen(false);
       setMessage("Dossier créé.");
     } catch (caughtError) {
       setError(getErrorMessage(caughtError));
@@ -233,6 +237,7 @@ export function AdminWorkspace() {
       folder_id: defaultFolderId,
     });
     setIsFilePanelOpen(true);
+    setIsMobileMenuOpen(false);
     setError("");
     setMessage("");
   }
@@ -313,24 +318,12 @@ export function AdminWorkspace() {
     window.location.href = "/login";
   }
 
-  if (!isConfigured) {
-    return (
-      <main className="flex min-h-screen items-center justify-center px-5">
-        <section className="max-w-xl rounded-lg border border-gold/20 bg-panel p-8">
-          <h1 className="font-title text-2xl text-cream">Configuration requise</h1>
-          <p className="mt-4 leading-7 text-muted">
-            Ajoutez `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-            dans `.env.local`, puis redémarrez le serveur de développement.
-          </p>
-        </section>
-      </main>
-    );
-  }
+  function renderSidebarContent(mode: "desktop" | "mobile") {
+    const inputId = `folder-name-${mode}`;
 
-  return (
-    <div className="min-h-screen bg-night text-cream lg:flex">
-      <aside className="border-b border-black/10 bg-panel/95 p-5 backdrop-blur lg:fixed lg:inset-y-0 lg:left-0 lg:w-80 lg:border-b-0 lg:border-r">
-        <div className="flex items-start justify-between gap-4 lg:block">
+    return (
+      <>
+        <div className="flex items-start justify-between gap-4">
           <div>
             <p className="font-title text-xl leading-7 text-cream">
               Ceci est notre croyance
@@ -339,22 +332,26 @@ export function AdminWorkspace() {
           </div>
           <button
             type="button"
-            onClick={handleLogout}
+            onClick={mode === "mobile" ? () => setIsMobileMenuOpen(false) : handleLogout}
             className="inline-flex h-10 w-10 items-center justify-center rounded border border-black/10 text-muted transition hover:border-gold/50 hover:text-gold"
-            aria-label="Se déconnecter"
-            title="Se déconnecter"
+            aria-label={mode === "mobile" ? "Fermer le menu" : "Se déconnecter"}
+            title={mode === "mobile" ? "Fermer le menu" : "Se déconnecter"}
           >
-            <LogOut size={18} aria-hidden="true" />
+            {mode === "mobile" ? (
+              <X size={18} aria-hidden="true" />
+            ) : (
+              <LogOut size={18} aria-hidden="true" />
+            )}
           </button>
         </div>
 
         <form className="mt-8" onSubmit={handleCreateFolder}>
-          <label className="text-sm text-cream" htmlFor="folder-name">
+          <label className="text-sm text-cream" htmlFor={inputId}>
             Nouveau dossier
           </label>
           <div className="mt-2 flex gap-2">
             <input
-              id="folder-name"
+              id={inputId}
               className="gold-focus min-w-0 flex-1 rounded border border-black/10 bg-white px-3 py-2.5 text-sm text-cream placeholder:text-muted"
               value={folderName}
               onChange={(event) => setFolderName(event.target.value)}
@@ -375,7 +372,10 @@ export function AdminWorkspace() {
         <nav className="mt-8 space-y-2" aria-label="Dossiers">
           <button
             type="button"
-            onClick={() => setSelectedFolderId("all")}
+            onClick={() => {
+              setSelectedFolderId("all");
+              setIsMobileMenuOpen(false);
+            }}
             className={folderButtonClass(selectedFolderId === "all")}
           >
             <Search size={17} aria-hidden="true" />
@@ -385,7 +385,10 @@ export function AdminWorkspace() {
             <button
               key={folder.id}
               type="button"
-              onClick={() => setSelectedFolderId(folder.id)}
+              onClick={() => {
+                setSelectedFolderId(folder.id);
+                setIsMobileMenuOpen(false);
+              }}
               className={folderButtonClass(selectedFolderId === folder.id)}
             >
               <Folder size={17} aria-hidden="true" />
@@ -394,17 +397,99 @@ export function AdminWorkspace() {
           ))}
         </nav>
 
-        <button
-          type="button"
-          onClick={openCreateFilePanel}
-          className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded bg-gold px-4 py-3 font-semibold text-ink transition hover:bg-gold-light"
-        >
-          <FilePlus2 size={18} aria-hidden="true" />
-          Créer un fichier
-        </button>
+        <div className="mt-8 grid gap-3">
+          <button
+            type="button"
+            onClick={openCreateFilePanel}
+            className="inline-flex w-full items-center justify-center gap-2 rounded bg-gold px-4 py-3 font-semibold text-ink transition hover:bg-gold-light"
+          >
+            <FilePlus2 size={18} aria-hidden="true" />
+            Créer un fichier
+          </button>
+          {mode === "mobile" ? (
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="inline-flex w-full items-center justify-center gap-2 rounded border border-black/10 px-4 py-3 text-sm font-semibold text-cream transition hover:border-gold/50 hover:text-gold"
+            >
+              <LogOut size={17} aria-hidden="true" />
+              Se déconnecter
+            </button>
+          ) : null}
+        </div>
+      </>
+    );
+  }
+
+  if (!isConfigured) {
+    return (
+      <main className="flex min-h-screen items-center justify-center px-5">
+        <section className="max-w-xl rounded-lg border border-gold/20 bg-panel p-8">
+          <h1 className="font-title text-2xl text-cream">Configuration requise</h1>
+          <p className="mt-4 leading-7 text-muted">
+            Ajoutez `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+            dans `.env.local`, puis redémarrez le serveur de développement.
+          </p>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-night text-cream lg:flex">
+      <div className="sticky top-0 z-40 border-b border-black/10 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="inline-flex h-11 w-11 items-center justify-center rounded border border-black/10 text-cream transition hover:border-gold/50 hover:text-gold"
+            aria-label="Ouvrir le menu des dossiers"
+            title="Ouvrir le menu des dossiers"
+          >
+            <Menu size={21} aria-hidden="true" />
+          </button>
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-title text-base text-cream">
+              Ceci est notre croyance
+            </p>
+            <p className="truncate text-xs text-muted">
+              {selectedFolderId === "all"
+                ? "Tous les fichiers"
+                : folders.find((folder) => folder.id === selectedFolderId)?.name ??
+                  "Dossier"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={openCreateFilePanel}
+            className="inline-flex h-11 w-11 items-center justify-center rounded bg-gold text-ink transition hover:bg-gold-light"
+            aria-label="Créer un fichier"
+            title="Créer un fichier"
+          >
+            <FilePlus2 size={19} aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+
+      {isMobileMenuOpen ? (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/20"
+            onClick={() => setIsMobileMenuOpen(false)}
+            aria-label="Fermer le menu"
+          />
+          <aside className="relative h-full w-[min(22rem,88vw)] overflow-y-auto border-r border-black/10 bg-panel p-5 shadow-premium">
+            {renderSidebarContent("mobile")}
+          </aside>
+        </div>
+      ) : null}
+
+      <aside className="hidden bg-panel/95 p-5 backdrop-blur lg:fixed lg:inset-y-0 lg:left-0 lg:block lg:w-80 lg:border-r lg:border-black/10">
+        {renderSidebarContent("desktop")}
       </aside>
 
-      <main className="w-full px-5 py-6 lg:ml-80 lg:px-10 lg:py-9">
+      <main className="w-full px-4 py-5 sm:px-5 lg:ml-80 lg:px-10 lg:py-9">
         <header className="mx-auto max-w-6xl">
           <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
             <div>
