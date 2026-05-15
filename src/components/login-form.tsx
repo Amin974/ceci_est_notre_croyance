@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { LockKeyhole, Mail, ShieldCheck } from "lucide-react";
 import { getSupabaseBrowserClient, hasSupabaseConfig } from "@/lib/supabase-browser";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export function LoginForm() {
   const [email, setEmail] = useState("");
@@ -41,7 +42,8 @@ export function LoginForm() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-5 py-12">
+    <main className="relative flex min-h-screen items-center justify-center px-5 py-12">
+      <ThemeToggle className="absolute right-5 top-5" />
       <section className="w-full max-w-md rounded-lg border border-gold/25 bg-panel/95 p-8 shadow-premium">
         <div className="mb-8 flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded border border-gold/40 bg-gold/10 text-gold">
@@ -70,7 +72,7 @@ export function LoginForm() {
         <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
           <label className="block text-sm text-cream">
             Email
-            <span className="mt-2 flex items-center gap-2 rounded border border-black/10 bg-white px-3 py-3 text-cream gold-focus">
+            <span className="mt-2 flex items-center gap-2 rounded border border-line/10 bg-surface px-3 py-3 text-cream gold-focus">
               <Mail size={18} className="text-gold" aria-hidden="true" />
               <input
                 className="w-full bg-transparent outline-none placeholder:text-muted"
@@ -86,7 +88,7 @@ export function LoginForm() {
 
           <label className="block text-sm text-cream">
             Mot de passe
-            <span className="mt-2 flex items-center gap-2 rounded border border-black/10 bg-white px-3 py-3 text-cream gold-focus">
+            <span className="mt-2 flex items-center gap-2 rounded border border-line/10 bg-surface px-3 py-3 text-cream gold-focus">
               <LockKeyhole size={18} className="text-gold" aria-hidden="true" />
               <input
                 className="w-full bg-transparent outline-none placeholder:text-muted"

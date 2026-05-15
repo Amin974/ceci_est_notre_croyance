@@ -10,10 +10,12 @@ import {
   LogOut,
   Menu,
   Search,
+  Trash2,
   X,
 } from "lucide-react";
 import { getSupabaseBrowserClient, hasSupabaseConfig } from "@/lib/supabase-browser";
 import { getSearchExcerpt, highlightMatches } from "@/lib/text";
+import { ThemeToggle } from "@/components/theme-toggle";
 import type { Folder as FolderType, TranslationFile } from "@/types/database";
 
 type FileFormState = {
@@ -312,6 +314,93 @@ export function AdminWorkspace() {
     }
   }
 
+  async function handleDeleteFile(file: TranslationFile) {
+    const confirmed = window.confirm(
+      `Supprimer définitivement le fichier "${file.title}" ?`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const { error: deleteError } = await supabase
+        .from("files")
+        .delete()
+        .eq("id", file.id);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      setFiles((current) => current.filter((currentFile) => currentFile.id !== file.id));
+      setMessage("Fichier supprimé.");
+    } catch (caughtError) {
+      setError(getErrorMessage(caughtError));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeleteSelectedFolder() {
+    if (selectedFolderId === "all") {
+      setError("Sélectionnez un dossier à supprimer.");
+      setMessage("");
+      return;
+    }
+
+    const folder = folders.find((currentFolder) => currentFolder.id === selectedFolderId);
+
+    if (!folder) {
+      setError("Dossier introuvable.");
+      setMessage("");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Supprimer définitivement le dossier "${folder.name}" et tous ses fichiers ?`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const { error: deleteError } = await supabase
+        .from("folders")
+        .delete()
+        .eq("id", folder.id);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      setFolders((current) =>
+        current.filter((currentFolder) => currentFolder.id !== folder.id),
+      );
+      setFiles((current) =>
+        current.filter((currentFile) => currentFile.folder_id !== folder.id),
+      );
+      setSelectedFolderId("all");
+      setIsMobileMenuOpen(false);
+      setMessage("Dossier supprimé.");
+    } catch (caughtError) {
+      setError(getErrorMessage(caughtError));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleLogout() {
     const supabase = getSupabaseBrowserClient();
     await supabase.auth.signOut();
@@ -330,19 +419,22 @@ export function AdminWorkspace() {
             </p>
             <p className="mt-1 text-sm text-muted">Bibliothèque des traductions</p>
           </div>
-          <button
-            type="button"
-            onClick={mode === "mobile" ? () => setIsMobileMenuOpen(false) : handleLogout}
-            className="inline-flex h-10 w-10 items-center justify-center rounded border border-black/10 text-muted transition hover:border-gold/50 hover:text-gold"
-            aria-label={mode === "mobile" ? "Fermer le menu" : "Se déconnecter"}
-            title={mode === "mobile" ? "Fermer le menu" : "Se déconnecter"}
-          >
-            {mode === "mobile" ? (
-              <X size={18} aria-hidden="true" />
-            ) : (
-              <LogOut size={18} aria-hidden="true" />
-            )}
-          </button>
+          <div className="flex shrink-0 gap-2">
+            <ThemeToggle />
+            <button
+              type="button"
+              onClick={mode === "mobile" ? () => setIsMobileMenuOpen(false) : handleLogout}
+              className="inline-flex h-10 w-10 items-center justify-center rounded border border-line/10 text-muted transition hover:border-gold/50 hover:text-gold"
+              aria-label={mode === "mobile" ? "Fermer le menu" : "Se déconnecter"}
+              title={mode === "mobile" ? "Fermer le menu" : "Se déconnecter"}
+            >
+              {mode === "mobile" ? (
+                <X size={18} aria-hidden="true" />
+              ) : (
+                <LogOut size={18} aria-hidden="true" />
+              )}
+            </button>
+          </div>
         </div>
 
         <form className="mt-8" onSubmit={handleCreateFolder}>
@@ -352,13 +444,13 @@ export function AdminWorkspace() {
           <div className="mt-2 flex gap-2">
             <input
               id={inputId}
-              className="gold-focus min-w-0 flex-1 rounded border border-black/10 bg-white px-3 py-2.5 text-sm text-cream placeholder:text-muted"
+              className="gold-focus min-w-0 flex-1 rounded border border-line/10 bg-surface px-3 py-2.5 text-sm text-cream placeholder:text-muted"
               value={folderName}
               onChange={(event) => setFolderName(event.target.value)}
               placeholder="Sermons"
             />
             <button
-              className="inline-flex h-11 w-11 items-center justify-center rounded bg-gold text-ink transition hover:bg-gold-light disabled:opacity-60"
+              className="inline-flex h-11 w-11 items-center justify-center rounded border border-gold/50 bg-gold/90 text-ink transition hover:bg-gold-light disabled:opacity-60"
               type="submit"
               disabled={saving || !folderName.trim()}
               aria-label="Créer un dossier"
@@ -400,17 +492,18 @@ export function AdminWorkspace() {
         <div className="mt-8 grid gap-3">
           <button
             type="button"
-            onClick={openCreateFilePanel}
-            className="inline-flex w-full items-center justify-center gap-2 rounded bg-gold px-4 py-3 font-semibold text-ink transition hover:bg-gold-light"
+            onClick={handleDeleteSelectedFolder}
+            disabled={saving || selectedFolderId === "all"}
+            className="inline-flex w-full items-center justify-center gap-2 rounded border border-danger/30 bg-danger/5 px-4 py-3 text-sm font-semibold text-danger transition hover:border-danger/45 hover:bg-danger/10 disabled:cursor-not-allowed disabled:opacity-45"
           >
-            <FilePlus2 size={18} aria-hidden="true" />
-            Créer un fichier
+            <Trash2 size={17} aria-hidden="true" />
+            Supprimer le dossier
           </button>
           {mode === "mobile" ? (
             <button
               type="button"
               onClick={handleLogout}
-              className="inline-flex w-full items-center justify-center gap-2 rounded border border-black/10 px-4 py-3 text-sm font-semibold text-cream transition hover:border-gold/50 hover:text-gold"
+              className="inline-flex w-full items-center justify-center gap-2 rounded border border-line/10 px-4 py-3 text-sm font-semibold text-cream transition hover:border-gold/50 hover:text-gold"
             >
               <LogOut size={17} aria-hidden="true" />
               Se déconnecter
@@ -437,12 +530,12 @@ export function AdminWorkspace() {
 
   return (
     <div className="min-h-screen bg-night text-cream lg:flex">
-      <div className="sticky top-0 z-40 border-b border-black/10 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
+      <div className="sticky top-0 z-40 border-b border-line/10 bg-surface/95 px-4 py-3 backdrop-blur lg:hidden">
         <div className="flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => setIsMobileMenuOpen(true)}
-            className="inline-flex h-11 w-11 items-center justify-center rounded border border-black/10 text-cream transition hover:border-gold/50 hover:text-gold"
+            className="inline-flex h-11 w-11 items-center justify-center rounded border border-line/10 text-cream transition hover:border-gold/50 hover:text-gold"
             aria-label="Ouvrir le menu des dossiers"
             title="Ouvrir le menu des dossiers"
           >
@@ -459,10 +552,11 @@ export function AdminWorkspace() {
                   "Dossier"}
             </p>
           </div>
+          <ThemeToggle />
           <button
             type="button"
             onClick={openCreateFilePanel}
-            className="inline-flex h-11 w-11 items-center justify-center rounded bg-gold text-ink transition hover:bg-gold-light"
+            className="inline-flex h-11 w-11 items-center justify-center rounded border border-gold/50 bg-gold/90 text-ink transition hover:bg-gold-light"
             aria-label="Créer un fichier"
             title="Créer un fichier"
           >
@@ -475,17 +569,17 @@ export function AdminWorkspace() {
         <div className="fixed inset-0 z-50 lg:hidden">
           <button
             type="button"
-            className="absolute inset-0 bg-black/20"
+            className="absolute inset-0 bg-black/30"
             onClick={() => setIsMobileMenuOpen(false)}
             aria-label="Fermer le menu"
           />
-          <aside className="relative h-full w-[min(22rem,88vw)] overflow-y-auto border-r border-black/10 bg-panel p-5 shadow-premium">
+          <aside className="relative h-full w-[min(22rem,88vw)] overflow-y-auto border-r border-line/10 bg-panel p-5 shadow-premium">
             {renderSidebarContent("mobile")}
           </aside>
         </div>
       ) : null}
 
-      <aside className="hidden bg-panel/95 p-5 backdrop-blur lg:fixed lg:inset-y-0 lg:left-0 lg:block lg:w-80 lg:border-r lg:border-black/10">
+      <aside className="hidden bg-panel/95 p-5 backdrop-blur lg:fixed lg:inset-y-0 lg:left-0 lg:block lg:w-80 lg:border-r lg:border-line/10">
         {renderSidebarContent("desktop")}
       </aside>
 
@@ -542,7 +636,7 @@ export function AdminWorkspace() {
           ) : null}
 
           {loading ? (
-            <div className="rounded-lg border border-black/10 bg-panel p-6 text-muted">
+            <div className="rounded-lg border border-line/10 bg-panel p-6 text-muted">
               Chargement de la bibliothèque...
             </div>
           ) : null}
@@ -553,7 +647,7 @@ export function AdminWorkspace() {
                 visibleFiles.map((file) => (
                   <article
                     key={file.id}
-                    className="rounded-lg border border-black/10 bg-panel p-5 shadow-premium"
+                    className="rounded-lg border border-line/10 bg-panel p-5 shadow-premium"
                   >
                     <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                       <div className="min-w-0">
@@ -567,7 +661,7 @@ export function AdminWorkspace() {
                       <div className="flex shrink-0 flex-wrap gap-2">
                         {file.youtube_url ? (
                           <a
-                            className="inline-flex items-center gap-2 rounded border border-black/10 px-3 py-2 text-sm text-muted transition hover:border-gold/50 hover:text-gold"
+                            className="inline-flex items-center gap-2 rounded border border-gold/40 bg-gold/10 px-3 py-2 text-sm font-semibold text-cream transition hover:border-gold hover:bg-gold/20"
                             href={file.youtube_url}
                             target="_blank"
                             rel="noreferrer"
@@ -583,6 +677,15 @@ export function AdminWorkspace() {
                         >
                           <FilePenLine size={15} aria-hidden="true" />
                           Modifier
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteFile(file)}
+                          disabled={saving}
+                          className="inline-flex items-center gap-2 rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm font-medium text-danger transition hover:border-danger/45 hover:bg-danger/10 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <Trash2 size={15} aria-hidden="true" />
+                          Supprimer
                         </button>
                       </div>
                     </div>
@@ -608,7 +711,7 @@ export function AdminWorkspace() {
       </main>
 
       {isFilePanelOpen ? (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-white/80 px-4 py-6 backdrop-blur">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-surface/80 px-4 py-6 backdrop-blur">
           <form
             className="mx-auto max-w-3xl rounded-lg border border-gold/20 bg-panel p-5 shadow-premium md:p-7"
             onSubmit={handleSaveFile}
@@ -625,7 +728,7 @@ export function AdminWorkspace() {
               <button
                 type="button"
                 onClick={() => setIsFilePanelOpen(false)}
-                className="rounded border border-black/10 px-3 py-2 text-sm text-muted transition hover:border-gold/50 hover:text-gold"
+                className="rounded border border-line/10 px-3 py-2 text-sm text-muted transition hover:border-gold/50 hover:text-gold"
               >
                 Fermer
               </button>
@@ -635,7 +738,7 @@ export function AdminWorkspace() {
               <label className="block text-sm text-cream">
                 Dossier
                 <select
-                  className="gold-focus mt-2 w-full rounded border border-black/10 bg-white px-3 py-3 text-cream"
+                  className="gold-focus mt-2 w-full rounded border border-line/10 bg-surface px-3 py-3 text-cream"
                   value={fileForm.folder_id}
                   onChange={(event) =>
                     setFileForm((current) => ({
@@ -659,7 +762,7 @@ export function AdminWorkspace() {
               <label className="block text-sm text-cream">
                 Titre du fichier
                 <input
-                  className="gold-focus mt-2 w-full rounded border border-black/10 bg-white px-3 py-3 text-cream placeholder:text-muted"
+                  className="gold-focus mt-2 w-full rounded border border-line/10 bg-surface px-3 py-3 text-cream placeholder:text-muted"
                   value={fileForm.title}
                   onChange={(event) =>
                     setFileForm((current) => ({
@@ -675,7 +778,7 @@ export function AdminWorkspace() {
               <label className="block text-sm text-cream">
                 Lien YouTube
                 <input
-                  className="gold-focus mt-2 w-full rounded border border-black/10 bg-white px-3 py-3 text-cream placeholder:text-muted"
+                  className="gold-focus mt-2 w-full rounded border border-line/10 bg-surface px-3 py-3 text-cream placeholder:text-muted"
                   value={fileForm.youtube_url}
                   onChange={(event) =>
                     setFileForm((current) => ({
@@ -691,7 +794,7 @@ export function AdminWorkspace() {
               <label className="block text-sm text-cream">
                 Texte arabe écrit manuellement
                 <textarea
-                  className="gold-focus mt-2 min-h-44 w-full resize-y rounded border border-black/10 bg-white px-3 py-3 leading-8 text-cream placeholder:text-muted"
+                  className="gold-focus mt-2 min-h-44 w-full resize-y rounded border border-line/10 bg-surface px-3 py-3 leading-8 text-cream placeholder:text-muted"
                   value={fileForm.arabic_text}
                   onChange={(event) =>
                     setFileForm((current) => ({
@@ -707,7 +810,7 @@ export function AdminWorkspace() {
               <label className="block text-sm text-cream">
                 Traduction française
                 <textarea
-                  className="gold-focus mt-2 min-h-44 w-full resize-y rounded border border-black/10 bg-white px-3 py-3 leading-7 text-cream placeholder:text-muted"
+                  className="gold-focus mt-2 min-h-44 w-full resize-y rounded border border-line/10 bg-surface px-3 py-3 leading-7 text-cream placeholder:text-muted"
                   value={fileForm.french_translation}
                   onChange={(event) =>
                     setFileForm((current) => ({
@@ -724,7 +827,7 @@ export function AdminWorkspace() {
               <button
                 type="button"
                 onClick={() => setIsFilePanelOpen(false)}
-                className="rounded border border-black/10 px-5 py-3 text-cream transition hover:border-gold/50 hover:text-gold"
+                className="rounded border border-line/10 px-5 py-3 text-cream transition hover:border-gold/50 hover:text-gold"
               >
                 Annuler
               </button>
@@ -754,7 +857,7 @@ function folderButtonClass(active: boolean) {
 
 function EmptyState({ title, text }: { title: string; text: string }) {
   return (
-    <div className="rounded-lg border border-black/10 bg-panel p-8 text-center">
+    <div className="rounded-lg border border-line/10 bg-panel p-8 text-center">
       <h2 className="font-title text-xl text-cream">{title}</h2>
       <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted">{text}</p>
     </div>
