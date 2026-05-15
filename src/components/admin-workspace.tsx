@@ -1,0 +1,704 @@
+"use client";
+
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  ExternalLink,
+  FilePenLine,
+  FilePlus2,
+  Folder,
+  FolderPlus,
+  LogOut,
+  Search,
+} from "lucide-react";
+import { getSupabaseBrowserClient, hasSupabaseConfig } from "@/lib/supabase-browser";
+import { getSearchExcerpt, highlightMatches } from "@/lib/text";
+import type { Folder as FolderType, TranslationFile } from "@/types/database";
+
+type FileFormState = {
+  id?: string;
+  folder_id: string;
+  title: string;
+  youtube_url: string;
+  arabic_text: string;
+  french_translation: string;
+};
+
+const emptyFileForm: FileFormState = {
+  folder_id: "",
+  title: "",
+  youtube_url: "",
+  arabic_text: "",
+  french_translation: "",
+};
+
+export function AdminWorkspace() {
+  const [folders, setFolders] = useState<FolderType[]>([]);
+  const [files, setFiles] = useState<TranslationFile[]>([]);
+  const [selectedFolderId, setSelectedFolderId] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [folderName, setFolderName] = useState("");
+  const [fileForm, setFileForm] = useState<FileFormState>(emptyFileForm);
+  const [isFilePanelOpen, setIsFilePanelOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const isConfigured = hasSupabaseConfig();
+
+  const visibleFiles = useMemo(() => {
+    if (selectedFolderId === "all" || searchQuery.trim()) {
+      return files;
+    }
+
+    return files.filter((file) => file.folder_id === selectedFolderId);
+  }, [files, searchQuery, selectedFolderId]);
+
+  useEffect(() => {
+    if (!isConfigured) {
+      setLoading(false);
+      setAuthChecked(false);
+      return;
+    }
+
+    void loadInitialData();
+  }, [isConfigured]);
+
+  useEffect(() => {
+    if (!isConfigured || !authChecked) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      void loadFiles();
+    }, 220);
+
+    return () => window.clearTimeout(timeout);
+  }, [authChecked, isConfigured, searchQuery, selectedFolderId]);
+
+  async function loadInitialData() {
+    setLoading(true);
+    setError("");
+
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        window.location.href = "/login";
+        return;
+      }
+
+      setAuthChecked(true);
+
+      const { data: folderRows, error: folderError } = await supabase
+        .from("folders")
+        .select("*")
+        .order("created_at", { ascending: true });
+
+      if (folderError) {
+        throw folderError;
+      }
+
+      setFolders(folderRows ?? []);
+      await loadFiles();
+    } catch (caughtError) {
+      setError(getErrorMessage(caughtError));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadFiles() {
+    setError("");
+
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const query = searchQuery.trim();
+
+      if (query) {
+        const { data, error: searchError } = await supabase.rpc(
+          "search_translation_files",
+          {
+            search_text: query,
+          },
+        );
+
+        if (searchError) {
+          throw searchError;
+        }
+
+        setFiles(
+          (data ?? []).map((file) => ({
+            ...file,
+            folders: {
+              id: file.folder_id,
+              name: file.folder_name,
+            },
+          })),
+        );
+        return;
+      }
+
+      let request = supabase
+        .from("files")
+        .select("*, folders(id, name)")
+        .order("updated_at", { ascending: false });
+
+      if (selectedFolderId !== "all") {
+        request = request.eq("folder_id", selectedFolderId);
+      }
+
+      const { data, error: fileError } = await request;
+
+      if (fileError) {
+        throw fileError;
+      }
+
+      setFiles(
+        (data ?? []).map((file) => {
+          const folderValue = Array.isArray(file.folders)
+            ? file.folders[0]
+            : file.folders;
+
+          return {
+            ...file,
+            folders: folderValue ?? null,
+          } as TranslationFile;
+        }),
+      );
+    } catch (caughtError) {
+      setError(getErrorMessage(caughtError));
+    }
+  }
+
+  async function handleCreateFolder(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = folderName.trim();
+
+    if (!name) {
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        window.location.href = "/login";
+        return;
+      }
+
+      const { data, error: folderError } = await supabase
+        .from("folders")
+        .insert({ name })
+        .select("*")
+        .single();
+
+      if (folderError) {
+        throw folderError;
+      }
+
+      setFolders((current) => [...current, data]);
+      setFolderName("");
+      setSelectedFolderId(data.id);
+      setMessage("Dossier créé.");
+    } catch (caughtError) {
+      setError(getErrorMessage(caughtError));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function openCreateFilePanel() {
+    if (!folders.length) {
+      setError("Créez d'abord un dossier avant d'ajouter un fichier.");
+      setMessage("");
+      return;
+    }
+
+    const defaultFolderId =
+      selectedFolderId !== "all" ? selectedFolderId : folders.at(0)?.id ?? "";
+
+    setFileForm({
+      ...emptyFileForm,
+      folder_id: defaultFolderId,
+    });
+    setIsFilePanelOpen(true);
+    setError("");
+    setMessage("");
+  }
+
+  function openEditFilePanel(file: TranslationFile) {
+    setFileForm({
+      id: file.id,
+      folder_id: file.folder_id,
+      title: file.title,
+      youtube_url: file.youtube_url ?? "",
+      arabic_text: file.arabic_text ?? "",
+      french_translation: file.french_translation ?? "",
+    });
+    setIsFilePanelOpen(true);
+    setError("");
+    setMessage("");
+  }
+
+  async function handleSaveFile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const title = fileForm.title.trim();
+
+    if (!title || !fileForm.folder_id) {
+      setError("Le titre et le dossier sont obligatoires.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    const payload = {
+      folder_id: fileForm.folder_id,
+      title,
+      youtube_url: fileForm.youtube_url.trim() || null,
+      arabic_text: fileForm.arabic_text.trim() || null,
+      french_translation: fileForm.french_translation.trim() || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    try {
+      const supabase = getSupabaseBrowserClient();
+
+      if (fileForm.id) {
+        const { error: updateError } = await supabase
+          .from("files")
+          .update(payload)
+          .eq("id", fileForm.id);
+
+        if (updateError) {
+          throw updateError;
+        }
+
+        setMessage("Fichier modifié.");
+      } else {
+        const { error: insertError } = await supabase.from("files").insert(payload);
+
+        if (insertError) {
+          throw insertError;
+        }
+
+        setMessage("Fichier créé.");
+      }
+
+      setIsFilePanelOpen(false);
+      setFileForm(emptyFileForm);
+      await loadFiles();
+    } catch (caughtError) {
+      setError(getErrorMessage(caughtError));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleLogout() {
+    const supabase = getSupabaseBrowserClient();
+    await supabase.auth.signOut();
+    window.location.href = "/login";
+  }
+
+  if (!isConfigured) {
+    return (
+      <main className="flex min-h-screen items-center justify-center px-5">
+        <section className="max-w-xl rounded-lg border border-gold/20 bg-panel p-8">
+          <h1 className="font-title text-2xl text-cream">Configuration requise</h1>
+          <p className="mt-4 leading-7 text-muted">
+            Ajoutez `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+            dans `.env.local`, puis redémarrez le serveur de développement.
+          </p>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-night text-cream lg:flex">
+      <aside className="border-b border-black/10 bg-panel/95 p-5 backdrop-blur lg:fixed lg:inset-y-0 lg:left-0 lg:w-80 lg:border-b-0 lg:border-r">
+        <div className="flex items-start justify-between gap-4 lg:block">
+          <div>
+            <p className="font-title text-xl leading-7 text-cream">
+              Ceci est notre croyance
+            </p>
+            <p className="mt-1 text-sm text-muted">Bibliothèque des traductions</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="inline-flex h-10 w-10 items-center justify-center rounded border border-black/10 text-muted transition hover:border-gold/50 hover:text-gold"
+            aria-label="Se déconnecter"
+            title="Se déconnecter"
+          >
+            <LogOut size={18} aria-hidden="true" />
+          </button>
+        </div>
+
+        <form className="mt-8" onSubmit={handleCreateFolder}>
+          <label className="text-sm text-cream" htmlFor="folder-name">
+            Nouveau dossier
+          </label>
+          <div className="mt-2 flex gap-2">
+            <input
+              id="folder-name"
+              className="gold-focus min-w-0 flex-1 rounded border border-black/10 bg-white px-3 py-2.5 text-sm text-cream placeholder:text-muted"
+              value={folderName}
+              onChange={(event) => setFolderName(event.target.value)}
+              placeholder="Sermons"
+            />
+            <button
+              className="inline-flex h-11 w-11 items-center justify-center rounded bg-gold text-ink transition hover:bg-gold-light disabled:opacity-60"
+              type="submit"
+              disabled={saving || !folderName.trim()}
+              aria-label="Créer un dossier"
+              title="Créer un dossier"
+            >
+              <FolderPlus size={18} aria-hidden="true" />
+            </button>
+          </div>
+        </form>
+
+        <nav className="mt-8 space-y-2" aria-label="Dossiers">
+          <button
+            type="button"
+            onClick={() => setSelectedFolderId("all")}
+            className={folderButtonClass(selectedFolderId === "all")}
+          >
+            <Search size={17} aria-hidden="true" />
+            Tous les fichiers
+          </button>
+          {folders.map((folder) => (
+            <button
+              key={folder.id}
+              type="button"
+              onClick={() => setSelectedFolderId(folder.id)}
+              className={folderButtonClass(selectedFolderId === folder.id)}
+            >
+              <Folder size={17} aria-hidden="true" />
+              <span className="truncate">{folder.name}</span>
+            </button>
+          ))}
+        </nav>
+
+        <button
+          type="button"
+          onClick={openCreateFilePanel}
+          className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded bg-gold px-4 py-3 font-semibold text-ink transition hover:bg-gold-light"
+        >
+          <FilePlus2 size={18} aria-hidden="true" />
+          Créer un fichier
+        </button>
+      </aside>
+
+      <main className="w-full px-5 py-6 lg:ml-80 lg:px-10 lg:py-9">
+        <header className="mx-auto max-w-6xl">
+          <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-sm uppercase tracking-[0.2em] text-gold">
+                Recherche
+              </p>
+              <h1 className="mt-2 font-title text-3xl text-cream md:text-4xl">
+                Retrouver un passage traduit
+              </h1>
+            </div>
+            <button
+              type="button"
+              onClick={openCreateFilePanel}
+              className="inline-flex items-center justify-center gap-2 rounded border border-gold/60 px-4 py-3 text-sm font-semibold text-cream transition hover:bg-gold hover:text-ink"
+            >
+              <FilePlus2 size={17} aria-hidden="true" />
+              Nouveau fichier
+            </button>
+          </div>
+
+          <div className="mt-8 flex items-center gap-3 rounded-lg border border-gold/25 bg-panel px-4 py-4 shadow-premium">
+            <Search className="shrink-0 text-gold" size={22} aria-hidden="true" />
+            <input
+              className="w-full bg-transparent text-base text-cream outline-none placeholder:text-muted md:text-lg"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Rechercher dans les titres, le texte arabe ou la traduction..."
+              aria-label="Recherche"
+            />
+          </div>
+        </header>
+
+        <section className="mx-auto mt-6 max-w-6xl">
+          {error ? (
+            <p className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </p>
+          ) : null}
+          {message ? (
+            <p className="mb-4 rounded border border-gold/30 bg-gold/10 px-4 py-3 text-sm text-cream">
+              {message}
+            </p>
+          ) : null}
+
+          {!folders.length && !loading ? (
+            <EmptyState
+              title="Aucun dossier"
+              text="Créez un premier dossier avant d'ajouter vos fichiers de traduction."
+            />
+          ) : null}
+
+          {loading ? (
+            <div className="rounded-lg border border-black/10 bg-panel p-6 text-muted">
+              Chargement de la bibliothèque...
+            </div>
+          ) : null}
+
+          {!loading && folders.length ? (
+            <div className="grid gap-4">
+              {visibleFiles.length ? (
+                visibleFiles.map((file) => (
+                  <article
+                    key={file.id}
+                    className="rounded-lg border border-black/10 bg-panel p-5 shadow-premium"
+                  >
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-xs uppercase tracking-[0.18em] text-gold">
+                          {file.folders?.name ?? file.folder_name ?? "Dossier"}
+                        </p>
+                        <h2 className="mt-2 break-words font-title text-xl text-cream">
+                          {highlightMatches(file.title, searchQuery)}
+                        </h2>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        {file.youtube_url ? (
+                          <a
+                            className="inline-flex items-center gap-2 rounded border border-black/10 px-3 py-2 text-sm text-muted transition hover:border-gold/50 hover:text-gold"
+                            href={file.youtube_url}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <ExternalLink size={15} aria-hidden="true" />
+                            YouTube
+                          </a>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => openEditFilePanel(file)}
+                          className="inline-flex items-center gap-2 rounded border border-gold/50 px-3 py-2 text-sm text-cream transition hover:bg-gold hover:text-ink"
+                        >
+                          <FilePenLine size={15} aria-hidden="true" />
+                          Modifier
+                        </button>
+                      </div>
+                    </div>
+
+                    <p className="mt-4 break-words text-sm leading-7 text-muted" dir="auto">
+                      {highlightMatches(getSearchExcerpt(file, searchQuery), searchQuery)}
+                    </p>
+                  </article>
+                ))
+              ) : (
+                <EmptyState
+                  title={searchQuery.trim() ? "Aucun résultat" : "Aucun fichier"}
+                  text={
+                    searchQuery.trim()
+                      ? "Aucun fichier ne contient cette recherche."
+                      : "Ajoutez un premier fichier de traduction dans ce dossier."
+                  }
+                />
+              )}
+            </div>
+          ) : null}
+        </section>
+      </main>
+
+      {isFilePanelOpen ? (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-white/80 px-4 py-6 backdrop-blur">
+          <form
+            className="mx-auto max-w-3xl rounded-lg border border-gold/20 bg-panel p-5 shadow-premium md:p-7"
+            onSubmit={handleSaveFile}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm uppercase tracking-[0.18em] text-gold">
+                  {fileForm.id ? "Modification" : "Création"}
+                </p>
+                <h2 className="mt-2 font-title text-2xl text-cream">
+                  {fileForm.id ? "Modifier le fichier" : "Nouveau fichier"}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFilePanelOpen(false)}
+                className="rounded border border-black/10 px-3 py-2 text-sm text-muted transition hover:border-gold/50 hover:text-gold"
+              >
+                Fermer
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-5">
+              <label className="block text-sm text-cream">
+                Dossier
+                <select
+                  className="gold-focus mt-2 w-full rounded border border-black/10 bg-white px-3 py-3 text-cream"
+                  value={fileForm.folder_id}
+                  onChange={(event) =>
+                    setFileForm((current) => ({
+                      ...current,
+                      folder_id: event.target.value,
+                    }))
+                  }
+                  required
+                >
+                  <option value="" disabled>
+                    Choisir un dossier
+                  </option>
+                  {folders.map((folder) => (
+                    <option key={folder.id} value={folder.id}>
+                      {folder.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block text-sm text-cream">
+                Titre du fichier
+                <input
+                  className="gold-focus mt-2 w-full rounded border border-black/10 bg-white px-3 py-3 text-cream placeholder:text-muted"
+                  value={fileForm.title}
+                  onChange={(event) =>
+                    setFileForm((current) => ({
+                      ...current,
+                      title: event.target.value,
+                    }))
+                  }
+                  placeholder="Titre du cours ou du rappel"
+                  required
+                />
+              </label>
+
+              <label className="block text-sm text-cream">
+                Lien YouTube
+                <input
+                  className="gold-focus mt-2 w-full rounded border border-black/10 bg-white px-3 py-3 text-cream placeholder:text-muted"
+                  value={fileForm.youtube_url}
+                  onChange={(event) =>
+                    setFileForm((current) => ({
+                      ...current,
+                      youtube_url: event.target.value,
+                    }))
+                  }
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  type="url"
+                />
+              </label>
+
+              <label className="block text-sm text-cream">
+                Texte arabe écrit manuellement
+                <textarea
+                  className="gold-focus mt-2 min-h-44 w-full resize-y rounded border border-black/10 bg-white px-3 py-3 leading-8 text-cream placeholder:text-muted"
+                  value={fileForm.arabic_text}
+                  onChange={(event) =>
+                    setFileForm((current) => ({
+                      ...current,
+                      arabic_text: event.target.value,
+                    }))
+                  }
+                  placeholder="Coller ou saisir le texte arabe..."
+                  dir="auto"
+                />
+              </label>
+
+              <label className="block text-sm text-cream">
+                Traduction française
+                <textarea
+                  className="gold-focus mt-2 min-h-44 w-full resize-y rounded border border-black/10 bg-white px-3 py-3 leading-7 text-cream placeholder:text-muted"
+                  value={fileForm.french_translation}
+                  onChange={(event) =>
+                    setFileForm((current) => ({
+                      ...current,
+                      french_translation: event.target.value,
+                    }))
+                  }
+                  placeholder="Saisir la traduction française..."
+                />
+              </label>
+            </div>
+
+            <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setIsFilePanelOpen(false)}
+                className="rounded border border-black/10 px-5 py-3 text-cream transition hover:border-gold/50 hover:text-gold"
+              >
+                Annuler
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="rounded bg-gold px-5 py-3 font-semibold text-ink transition hover:bg-gold-light disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {saving ? "Enregistrement..." : "Enregistrer"}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function folderButtonClass(active: boolean) {
+  return [
+    "flex w-full items-center gap-3 rounded px-3 py-2.5 text-left text-sm transition",
+    active
+      ? "bg-gold/15 text-gold"
+      : "text-muted hover:bg-gold/10 hover:text-cream",
+  ].join(" ");
+}
+
+function EmptyState({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="rounded-lg border border-black/10 bg-panel p-8 text-center">
+      <h2 className="font-title text-xl text-cream">{title}</h2>
+      <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted">{text}</p>
+    </div>
+  );
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === "object" && error !== null) {
+    const maybeError = error as {
+      message?: unknown;
+      details?: unknown;
+      hint?: unknown;
+      code?: unknown;
+    };
+
+    const parts = [maybeError.message, maybeError.details, maybeError.hint]
+      .filter((part): part is string => typeof part === "string" && part.length > 0);
+
+    if (parts.length) {
+      const code =
+        typeof maybeError.code === "string" ? ` (${maybeError.code})` : "";
+
+      return `${parts.join(" ")}${code}`;
+    }
+  }
+
+  return "Une erreur est survenue.";
+}

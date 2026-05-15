@@ -1,295 +1,87 @@
-Ceci est notre croyance — Admin Traductions
+# Ceci est notre croyance — Admin Traductions
 
-Application web privée permettant de centraliser, organiser et rechercher des traductions de vidéos d’un cheikh parlant en arabe.
+Application web privée permettant de centraliser, organiser et rechercher des
+traductions de vidéos d'un cheikh parlant en arabe.
 
-Le projet est destiné à un usage interne par des administrateurs qui traduisent des contenus vidéo en français.
+## Stack
 
-⸻
+- Next.js App Router
+- TypeScript
+- TailwindCSS
+- Supabase Auth + Database
+- Vercel
 
-Objectif du projet
+## Fonctionnalités MVP
 
-L’objectif principal est de permettre de :
+- Connexion privée par email / mot de passe via Supabase Auth.
+- Aucun formulaire d'inscription publique.
+- Sidebar avec dossiers, création de dossier et création de fichier.
+- Création et modification de fichiers de traduction.
+- Recherche dans les titres, textes arabes et traductions françaises.
+- Surlignage du mot ou de l'expression recherchée.
 
-* centraliser les travaux de traduction,
-* organiser les contenus dans des dossiers,
-* retrouver rapidement des passages déjà traduits,
-* effectuer des recherches dans les textes arabes et français,
-* gagner du temps sur les travaux de traduction.
+## Installation
 
-⸻
-
-Fonctionnalités
-
-Authentification
-
-* connexion sécurisée via email / mot de passe,
-* un seul compte superadmin,
-* aucun système d’inscription publique.
-
-⸻
-
-Gestion des dossiers
-
-Possibilité de :
-
-* créer des dossiers,
-* organiser les fichiers de traduction.
-
-Exemples :
-
-* Sermons
-* Rappels
-* Ramadan
-* Tawhid
-
-⸻
-
-Gestion des fichiers
-
-Chaque fichier contient :
-
-* un titre,
-* un lien YouTube,
-* un texte arabe écrit manuellement,
-* une traduction française.
-
-⸻
-
-Moteur de recherche
-
-Recherche globale dans :
-
-* les titres,
-* les textes arabes,
-* les traductions françaises.
-
-Fonctionnalités :
-
-* résultats rapides,
-* extraits de texte,
-* surlignage des mots recherchés,
-* affichage du dossier associé.
-
-⸻
-
-Stack technique
-
-Frontend
-
-* Next.js
-* TypeScript
-* TailwindCSS
-
-⸻
-
-Backend / Database
-
-* Supabase
-
-⸻
-
-Déploiement
-
-* Vercel
-
-⸻
-
-Charte graphique
-
-Le design est inspiré de la chaîne « Ceci est notre croyance ».
-
-Style visuel
-
-* sobre,
-* premium,
-* spirituel,
-* minimaliste,
-* élégant.
-
-Palette principale
-
-Couleur	Hex
-Noir profond	#0B0B0B
-Or élégant	#C8A75B
-Or clair	#E2C98A
-Blanc cassé	#F2F2F2
-Gris subtil	#A1A1A1
-
-⸻
-
-Typographies
-
-Titres
-
-* Cinzel
-
-Texte
-
-* Inter
-
-⸻
-
-Installation
-
-1. Cloner le projet
-
-git clone <repo-url>
-cd <project-name>
-
-⸻
-
-2. Installer les dépendances
-
+```bash
 npm install
+cp .env.example .env.local
+npm run dev
+```
 
-⸻
+L'application sera disponible sur :
 
-Configuration Supabase
+```text
+http://localhost:3000
+```
 
-Créer un projet Supabase
+## Configuration Supabase
 
-Créer un projet sur :
+1. Créer un projet Supabase.
+2. Copier les valeurs du projet dans `.env.local` :
 
-Supabase￼
-
-⸻
-
-Variables d’environnement
-
-Créer un fichier .env.local
-
+```bash
 NEXT_PUBLIC_SUPABASE_URL=your_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+```
 
-⸻
+3. Exécuter le fichier SQL suivant dans l'éditeur SQL Supabase :
 
-Base de données
+```text
+supabase/schema.sql
+```
 
-Table folders
+Ce schéma crée :
 
-create table folders (
-  id uuid primary key default gen_random_uuid(),
-  name text not null,
-  created_at timestamp with time zone default now()
-);
+- `folders`
+- `files`
+- le trigger `updated_at`
+- la fonction RPC `search_translation_files`
+- les policies RLS pour les utilisateurs authentifiés
 
-⸻
+4. Créer manuellement le compte superadmin dans Supabase :
 
-Table files
+```text
+Authentication > Users > Add user
+```
 
-create table files (
-  id uuid primary key default gen_random_uuid(),
-  folder_id uuid references folders(id) on delete cascade,
-  title text not null,
-  youtube_url text,
-  arabic_text text,
-  french_translation text,
-  created_at timestamp with time zone default now(),
-  updated_at timestamp with time zone default now()
-);
+## Scripts
 
-⸻
-
-Sécurité Supabase
-
-Activer RLS :
-
-alter table folders enable row level security;
-alter table files enable row level security;
-
-Créer les policies :
-
-create policy "Authenticated users can manage folders"
-on folders
-for all
-to authenticated
-using (true)
-with check (true);
-create policy "Authenticated users can manage files"
-on files
-for all
-to authenticated
-using (true)
-with check (true);
-
-⸻
-
-Création du superadmin
-
-Dans Supabase :
-
-* Authentication
-* Users
-* Add User
-
-Créer manuellement :
-
-* email
-* mot de passe
-
-Aucune inscription publique ne doit être disponible.
-
-⸻
-
-Lancer le projet
-
+```bash
 npm run dev
+npm run build
+npm run typecheck
+```
 
-Application disponible sur :
+## Variables d'environnement Vercel
 
-http://localhost:3000
+Ajouter dans les settings du projet Vercel :
 
-⸻
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
-Déploiement Vercel
+## Contraintes
 
-Déployer le projet sur :
-
-Vercel￼
-
-⸻
-
-Variables d’environnement Vercel
-
-Ajouter :
-
-NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-dans :
-
-* Project Settings
-* Environment Variables
-
-⸻
-
-Structure du projet
-
-src/
-├── app/
-├── components/
-├── lib/
-├── services/
-├── styles/
-└── types/
-
-⸻
-
-Contraintes importantes
-
-* projet volontairement simple,
-* pas de système multi-rôles,
-* pas d’inscription publique,
-* pas de fonctionnalités inutiles,
-* priorité à la rapidité et à la lisibilité.
-
-⸻
-
-Vision du projet
-
-Créer une bibliothèque moderne de traductions permettant à une équipe de :
-
-* retrouver rapidement des contenus,
-* centraliser les travaux,
-* préserver les traductions réalisées,
-* améliorer l’organisation du travail quotidien.
+- Pas d'inscription publique.
+- Pas de multi-rôles.
+- Pas de commentaires, notifications, paiement ou dashboard complexe.
+- Le MVP reste centré sur login, dossiers, fichiers et recherche.

@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  background: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: #ffffff;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at top right, rgba(200, 167, 91, 0.12), transparent 28rem),
+    #ffffff;
+  color: #111111;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(200, 167, 91, 0.35);
+  color: #111111;
+}
+
+.gold-focus {
+  @apply outline-none ring-0 transition;
+}
+
+.gold-focus:focus {
+  @apply border-gold shadow-[0_0_0_3px_rgba(200,167,91,0.14)];
+}
