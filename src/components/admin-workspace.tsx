@@ -46,6 +46,7 @@ export function AdminWorkspace() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [fetchingYoutubeTitle, setFetchingYoutubeTitle] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -311,6 +312,48 @@ export function AdminWorkspace() {
       setError(getErrorMessage(caughtError));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function fetchYoutubeTitle() {
+    const youtubeUrl = fileForm.youtube_url.trim();
+
+    if (!youtubeUrl || fileForm.title.trim() || fetchingYoutubeTitle) {
+      return;
+    }
+
+    setFetchingYoutubeTitle(true);
+    setError("");
+
+    try {
+      const response = await fetch(
+        `/api/youtube-title?url=${encodeURIComponent(youtubeUrl)}`,
+      );
+      const data = (await response.json()) as {
+        title?: unknown;
+        error?: unknown;
+      };
+
+      if (!response.ok) {
+        throw new Error(
+          typeof data.error === "string"
+            ? data.error
+            : "Impossible de récupérer le titre YouTube.",
+        );
+      }
+
+      if (typeof data.title === "string" && data.title.trim()) {
+        const title = data.title.trim();
+
+        setFileForm((current) => ({
+          ...current,
+          title: current.title.trim() ? current.title : title,
+        }));
+      }
+    } catch (caughtError) {
+      setError(getErrorMessage(caughtError));
+    } finally {
+      setFetchingYoutubeTitle(false);
     }
   }
 
@@ -786,9 +829,15 @@ export function AdminWorkspace() {
                       youtube_url: event.target.value,
                     }))
                   }
+                  onBlur={fetchYoutubeTitle}
                   placeholder="https://www.youtube.com/watch?v=..."
                   type="url"
                 />
+                {fetchingYoutubeTitle ? (
+                  <span className="mt-2 block text-xs text-muted">
+                    Récupération du titre YouTube...
+                  </span>
+                ) : null}
               </label>
 
               <label className="block text-sm text-cream">
