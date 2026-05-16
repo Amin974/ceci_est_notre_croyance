@@ -886,6 +886,7 @@ export function AdminWorkspace() {
               {visibleFiles.length ? (
                 visibleFiles.map((file, index) => {
                   const isTranslationExpanded = expandedTranslationIds.has(file.id);
+                  const contentStatus = getContentStatus(file);
                   const translation = file.french_translation?.trim();
                   const translationPanelId = `translation-${file.id}`;
 
@@ -911,8 +912,20 @@ export function AdminWorkspace() {
                             />
                           ) : null}
                           <div className="min-w-0">
-                            <p className="text-xs uppercase tracking-[0.18em] text-gold">
-                              {file.folders?.name ?? file.folder_name ?? "Dossier"}
+                            <p className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-gold">
+                              <span className="group relative inline-flex shrink-0">
+                                <span
+                                  className={`h-3.5 w-3.5 rounded-full ring-2 ring-panel ${contentStatus.className}`}
+                                  aria-label={contentStatus.label}
+                                  tabIndex={0}
+                                />
+                                <span className="pointer-events-none absolute left-0 top-5 z-20 hidden w-max max-w-64 rounded border border-line/10 bg-ink px-2.5 py-1.5 text-xs normal-case tracking-normal text-white shadow-premium group-hover:block group-focus-within:block">
+                                  {contentStatus.label}
+                                </span>
+                              </span>
+                              <span className="truncate">
+                                {file.folders?.name ?? file.folder_name ?? "Dossier"}
+                              </span>
                             </p>
                             <h2 className="mt-2 break-words font-title text-xl text-cream">
                               {highlightMatches(file.title, searchQuery)}
@@ -1201,6 +1214,37 @@ function EmptyState({ title, text }: { title: string; text: string }) {
       <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted">{text}</p>
     </div>
   );
+}
+
+function getContentStatus(file: TranslationFile) {
+  const hasArabic = Boolean(file.arabic_text?.trim());
+  const hasFrench = Boolean(file.french_translation?.trim());
+
+  if (hasArabic && hasFrench) {
+    return {
+      className: "bg-emerald-500",
+      label: "Texte arabe et traduction française renseignés",
+    };
+  }
+
+  if (hasArabic) {
+    return {
+      className: "bg-amber-400",
+      label: "Texte arabe uniquement",
+    };
+  }
+
+  if (hasFrench) {
+    return {
+      className: "bg-sky-500",
+      label: "Traduction française uniquement",
+    };
+  }
+
+  return {
+    className: "bg-muted/35",
+    label: "Aucun texte arabe ou français renseigné",
+  };
 }
 
 function reorderById<T extends { id: string }>(
