@@ -831,7 +831,7 @@ export function AdminWorkspace() {
         </header>
 
         <section className="mx-auto mt-6 max-w-6xl">
-          {error ? (
+          {error && !isFilePanelOpen ? (
             <p className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error}
             </p>
@@ -990,6 +990,12 @@ export function AdminWorkspace() {
                 Fermer
               </button>
             </div>
+
+            {error ? (
+              <p className="mt-5 rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
+              </p>
+            ) : null}
 
             <div className="mt-6 grid gap-5">
               <label className="block text-sm text-cream">
@@ -1191,6 +1197,13 @@ function getErrorMessage(error: unknown) {
       /files_youtube_url_unique_idx|youtube_url/i.test(textParts)
     ) {
       return "Cette video YouTube existe deja dans la bibliotheque.";
+    }
+
+    if (
+      maybeError.code === "23505" &&
+      /files_title_unique_idx|title/i.test(textParts)
+    ) {
+      return "Ce titre existe deja dans la bibliotheque.";
     }
 
     const parts = [maybeError.message, maybeError.details, maybeError.hint]
