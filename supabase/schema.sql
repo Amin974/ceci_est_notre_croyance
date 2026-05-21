@@ -3,22 +3,26 @@ create extension if not exists pgcrypto;
 create table if not exists public.folders (
   id uuid primary key default gen_random_uuid(),
   name text not null,
+  sort_order integer default 0 not null,
   created_at timestamp with time zone default now() not null
 );
 
 create table if not exists public.files (
   id uuid primary key default gen_random_uuid(),
-  folder_id uuid not null references public.folders(id) on delete cascade,
+  folder_id uuid references public.folders(id) on delete set null,
   title text not null,
   youtube_url text,
   published_at date,
   arabic_text text,
   french_translation text,
+  sort_order integer default 0 not null,
   created_at timestamp with time zone default now() not null,
   updated_at timestamp with time zone default now() not null
 );
 
 create index if not exists files_folder_id_idx on public.files(folder_id);
+create index if not exists folders_sort_order_idx on public.folders(sort_order asc);
+create index if not exists files_folder_sort_order_idx on public.files(folder_id, sort_order asc);
 create index if not exists files_folder_published_at_idx on public.files(folder_id, published_at desc nulls last);
 create index if not exists files_updated_at_idx on public.files(updated_at desc);
 
@@ -48,6 +52,7 @@ returns table (
   published_at date,
   arabic_text text,
   french_translation text,
+  sort_order integer,
   created_at timestamp with time zone,
   updated_at timestamp with time zone
 )
@@ -63,10 +68,11 @@ as $$
     files.published_at,
     files.arabic_text,
     files.french_translation,
+    files.sort_order,
     files.created_at,
     files.updated_at
   from public.files
-  join public.folders on folders.id = files.folder_id
+  left join public.folders on folders.id = files.folder_id
   where
     nullif(trim(search_text), '') is not null
     and (

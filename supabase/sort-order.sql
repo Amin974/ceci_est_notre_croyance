@@ -7,6 +7,9 @@ add column if not exists sort_order integer default 0 not null;
 alter table public.files
 add column if not exists published_at date;
 
+alter table public.files
+alter column folder_id drop not null;
+
 with ordered_folders as (
   select id, row_number() over (order by created_at, id) - 1 as position
   from public.folders
@@ -76,7 +79,7 @@ as $$
     files.created_at,
     files.updated_at
   from public.files
-  join public.folders on folders.id = files.folder_id
+  left join public.folders on folders.id = files.folder_id
   where
     nullif(trim(search_text), '') is not null
     and (

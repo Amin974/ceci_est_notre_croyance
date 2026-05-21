@@ -1,11 +1,20 @@
 alter table public.files
+add column if not exists sort_order integer default 0 not null;
+
+alter table public.files
 add column if not exists published_at date;
 
 alter table public.files
-add column if not exists sort_order integer default 0 not null;
+alter column folder_id drop not null;
 
-create index if not exists files_folder_published_at_idx
-on public.files(folder_id, published_at desc nulls last);
+alter table public.files
+drop constraint if exists files_folder_id_fkey;
+
+alter table public.files
+add constraint files_folder_id_fkey
+foreign key (folder_id)
+references public.folders(id)
+on delete set null;
 
 drop function if exists public.search_translation_files(text);
 

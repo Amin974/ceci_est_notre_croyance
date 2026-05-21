@@ -33,7 +33,7 @@ export type Database = {
       files: {
         Row: {
           id: string;
-          folder_id: string;
+          folder_id: string | null;
           title: string;
           youtube_url: string | null;
           published_at: string | null;
@@ -45,7 +45,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
-          folder_id: string;
+          folder_id?: string | null;
           title: string;
           youtube_url?: string | null;
           published_at?: string | null;
@@ -57,7 +57,7 @@ export type Database = {
         };
         Update: {
           id?: string;
-          folder_id?: string;
+          folder_id?: string | null;
           title?: string;
           youtube_url?: string | null;
           published_at?: string | null;
@@ -86,8 +86,8 @@ export type Database = {
         };
         Returns: {
           id: string;
-          folder_id: string;
-          folder_name: string;
+          folder_id: string | null;
+          folder_name: string | null;
           title: string;
           youtube_url: string | null;
           published_at: string | null;
@@ -107,5 +107,5 @@ export type Database = {
 export type Folder = Database["public"]["Tables"]["folders"]["Row"];
 export type TranslationFile = Database["public"]["Tables"]["files"]["Row"] & {
   folders?: Pick<Folder, "id" | "name"> | null;
-  folder_name?: string;
+  folder_name?: string | null;
 };

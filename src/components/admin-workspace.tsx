@@ -31,6 +31,8 @@ type FileFormState = {
   french_translation: string;
 };
 
+const UNFILED_FOLDER_ID = "unfiled";
+
 const emptyFileForm: FileFormState = {
   folder_id: "",
   title: "",
@@ -65,6 +67,10 @@ export function AdminWorkspace() {
   const visibleFiles = useMemo(() => {
     if (selectedFolderId === "all" || searchQuery.trim()) {
       return files;
+    }
+
+    if (selectedFolderId === UNFILED_FOLDER_ID) {
+      return files.filter((file) => !file.folder_id);
     }
 
     return files.filter((file) => file.folder_id === selectedFolderId);
@@ -130,7 +136,7 @@ export function AdminWorkspace() {
     }
   }
 
-  async function loadFiles() {
+  async function loadFiles(folderId = selectedFolderId) {
     setError("");
 
     try {
@@ -152,10 +158,13 @@ export function AdminWorkspace() {
         setFiles(
           (data ?? []).map((file) => ({
             ...file,
-            folders: {
-              id: file.folder_id,
-              name: file.folder_name,
-            },
+            folders:
+              file.folder_id && file.folder_name
+                ? {
+                    id: file.folder_id,
+                    name: file.folder_name,
+                  }
+                : null,
           })),
         );
         return;
@@ -167,8 +176,10 @@ export function AdminWorkspace() {
         .order("published_at", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false });
 
-      if (selectedFolderId !== "all") {
-        request = request.eq("folder_id", selectedFolderId);
+      if (folderId === UNFILED_FOLDER_ID) {
+        request = request.is("folder_id", null);
+      } else if (folderId !== "all") {
+        request = request.eq("folder_id", folderId);
       }
 
       const { data, error: fileError } = await request;
@@ -240,14 +251,10 @@ export function AdminWorkspace() {
   }
 
   function openCreateFilePanel() {
-    if (!folders.length) {
-      setError("Créez d'abord un dossier avant d'ajouter un fichier.");
-      setMessage("");
-      return;
-    }
-
     const defaultFolderId =
-      selectedFolderId !== "all" ? selectedFolderId : folders.at(0)?.id ?? "";
+      selectedFolderId !== "all" && selectedFolderId !== UNFILED_FOLDER_ID
+        ? selectedFolderId
+        : "";
 
     setFileForm({
       ...emptyFileForm,
@@ -262,7 +269,7 @@ export function AdminWorkspace() {
   function openEditFilePanel(file: TranslationFile) {
     setFileForm({
       id: file.id,
-      folder_id: file.folder_id,
+      folder_id: file.folder_id ?? "",
       title: file.title,
       youtube_url: file.youtube_url ?? "",
       published_at: file.published_at ?? "",
@@ -292,8 +299,8 @@ export function AdminWorkspace() {
     event.preventDefault();
     const title = fileForm.title.trim();
 
-    if (!title || !fileForm.folder_id) {
-      setError("Le titre et le dossier sont obligatoires.");
+    if (!title) {
+      setError("Le titre est obligatoire.");
       return;
     }
 
@@ -302,7 +309,7 @@ export function AdminWorkspace() {
     setMessage("");
 
     const payload = {
-      folder_id: fileForm.folder_id,
+      folder_id: fileForm.folder_id || null,
       title,
       youtube_url: fileForm.youtube_url.trim() || null,
       published_at: fileForm.published_at || null,
@@ -327,7 +334,7 @@ export function AdminWorkspace() {
         setMessage("Fichier modifié.");
       } else {
         const folderFileCount = files.filter(
-          (file) => file.folder_id === fileForm.folder_id,
+          (file) => file.folder_id === (fileForm.folder_id || null),
         ).length;
         const { error: insertError } = await supabase
           .from("files")
@@ -441,7 +448,7 @@ export function AdminWorkspace() {
     }
 
     const confirmed = window.confirm(
-      `Supprimer définitivement le dossier "${folder.name}" et tous ses fichiers ?`,
+      `Supprimer définitivement le dossier "${folder.name}" ? Les fichiers seront conservés sans dossier.`,
     );
 
     if (!confirmed) {
@@ -467,11 +474,16 @@ export function AdminWorkspace() {
         current.filter((currentFolder) => currentFolder.id !== folder.id),
       );
       setFiles((current) =>
-        current.filter((currentFile) => currentFile.folder_id !== folder.id),
+        current.map((currentFile) =>
+          currentFile.folder_id === folder.id
+            ? { ...currentFile, folder_id: null, folders: null, folder_name: null }
+            : currentFile,
+        ),
       );
       setSelectedFolderId("all");
       setIsMobileMenuOpen(false);
       setMessage("Dossier supprimé.");
+      await loadFiles("all");
     } catch (caughtError) {
       setError(getErrorMessage(caughtError));
     } finally {
@@ -671,6 +683,17 @@ export function AdminWorkspace() {
             <Search size={17} aria-hidden="true" />
             Tous les fichiers
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedFolderId(UNFILED_FOLDER_ID);
+              setIsMobileMenuOpen(false);
+            }}
+            className={folderButtonClass(selectedFolderId === UNFILED_FOLDER_ID)}
+          >
+            <FilePlus2 size={17} aria-hidden="true" />
+            Sans dossier
+          </button>
           {folders.map((folder, index) => (
             <div
               key={folder.id}
@@ -783,6 +806,8 @@ export function AdminWorkspace() {
             <p className="truncate text-xs text-muted">
               {selectedFolderId === "all"
                 ? "Tous les fichiers"
+                : selectedFolderId === UNFILED_FOLDER_ID
+                  ? "Sans dossier"
                 : folders.find((folder) => folder.id === selectedFolderId)?.name ??
                   "Dossier"}
             </p>
@@ -863,20 +888,13 @@ export function AdminWorkspace() {
             </p>
           ) : null}
 
-          {!folders.length && !loading ? (
-            <EmptyState
-              title="Aucun dossier"
-              text="Créez un premier dossier avant d'ajouter vos fichiers de traduction."
-            />
-          ) : null}
-
           {loading ? (
             <div className="rounded-lg border border-line/10 bg-panel p-6 text-muted">
               Chargement de la bibliothèque...
             </div>
           ) : null}
 
-          {!loading && folders.length ? (
+          {!loading ? (
             <div className="grid gap-4">
               {canReorderFiles ? (
                 <p className="text-sm text-muted">
@@ -924,7 +942,7 @@ export function AdminWorkspace() {
                                 </span>
                               </span>
                               <span className="truncate">
-                                {file.folders?.name ?? file.folder_name ?? "Dossier"}
+                                {file.folders?.name ?? file.folder_name ?? "Sans dossier"}
                               </span>
                             </p>
                             <h2 className="mt-2 break-words font-title text-xl text-cream">
@@ -1026,7 +1044,9 @@ export function AdminWorkspace() {
                   text={
                     searchQuery.trim()
                       ? "Aucun fichier ne contient cette recherche."
-                      : "Ajoutez un premier fichier de traduction dans ce dossier."
+                      : selectedFolderId === UNFILED_FOLDER_ID
+                        ? "Ajoutez un premier fichier de traduction sans dossier."
+                        : "Ajoutez un premier fichier de traduction."
                   }
                 />
               )}
@@ -1077,10 +1097,9 @@ export function AdminWorkspace() {
                       folder_id: event.target.value,
                     }))
                   }
-                  required
                 >
-                  <option value="" disabled>
-                    Choisir un dossier
+                  <option value="">
+                    Sans dossier
                   </option>
                   {folders.map((folder) => (
                     <option key={folder.id} value={folder.id}>
