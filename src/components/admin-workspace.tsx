@@ -843,36 +843,38 @@ export function AdminWorkspace() {
         {renderSidebarContent("desktop")}
       </aside>
 
-      <main className="w-full px-4 py-5 sm:px-5 lg:ml-80 lg:px-10 lg:py-9">
-        <header className="mx-auto max-w-6xl">
-          <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="text-sm uppercase tracking-[0.2em] text-gold">
-                Recherche
-              </p>
-              <h1 className="mt-2 font-title text-3xl text-cream md:text-4xl">
-                Retrouver un passage traduit
-              </h1>
+      <main className="w-full px-4 pb-5 sm:px-5 lg:ml-80 lg:px-10 lg:pb-9">
+        <header className="sticky top-[4.25rem] z-30 -mx-4 border-b border-line/10 bg-night/95 px-4 py-5 backdrop-blur sm:-mx-5 sm:px-5 lg:top-0 lg:-mx-10 lg:px-10 lg:py-9">
+          <div className="mx-auto max-w-6xl">
+            <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+              <div>
+                <p className="text-sm uppercase tracking-[0.2em] text-gold">
+                  Recherche
+                </p>
+                <h1 className="mt-2 font-title text-3xl text-cream md:text-4xl">
+                  Retrouver un passage traduit
+                </h1>
+              </div>
+              <button
+                type="button"
+                onClick={openCreateFilePanel}
+                className="inline-flex items-center justify-center gap-2 rounded border border-gold/60 px-4 py-3 text-sm font-semibold text-cream transition hover:bg-gold hover:text-ink"
+              >
+                <FilePlus2 size={17} aria-hidden="true" />
+                Nouveau fichier
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={openCreateFilePanel}
-              className="inline-flex items-center justify-center gap-2 rounded border border-gold/60 px-4 py-3 text-sm font-semibold text-cream transition hover:bg-gold hover:text-ink"
-            >
-              <FilePlus2 size={17} aria-hidden="true" />
-              Nouveau fichier
-            </button>
-          </div>
 
-          <div className="mt-8 flex items-center gap-3 rounded-lg border border-gold/25 bg-panel px-4 py-4 shadow-premium">
-            <Search className="shrink-0 text-gold" size={22} aria-hidden="true" />
-            <input
-              className="w-full bg-transparent text-base text-cream outline-none placeholder:text-muted md:text-lg"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Rechercher dans les titres, le texte arabe ou la traduction..."
-              aria-label="Recherche"
-            />
+            <div className="mt-8 flex items-center gap-3 rounded-lg border border-gold/25 bg-panel px-4 py-4 shadow-premium">
+              <Search className="shrink-0 text-gold" size={22} aria-hidden="true" />
+              <input
+                className="w-full bg-transparent text-base text-cream outline-none placeholder:text-muted md:text-lg"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Rechercher dans les titres, le texte arabe ou la traduction..."
+                aria-label="Recherche"
+              />
+            </div>
           </div>
         </header>
 
